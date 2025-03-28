@@ -1,35 +1,59 @@
-let preludeContent = "";
-let defaultContent = "";
+const shpCache = {
+  files: {},
+
+  // Load a .shp file and cache it
+  load: function(filename) {
+    return fetch(`./shp/${filename}`)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Failed to load ${filename}`);
+        }
+        return response.text();
+      })
+      .then(content => {
+        this.files[filename] = content;
+        return content;
+      })
+      .catch(error => {
+        console.error(`Error loading ${filename}:`, error);
+        throw error;
+      });
+  },
+
+  // Get a file from cache or load it if not cached
+  get: function(filename) {
+    if (this.files[filename]) {
+      return Promise.resolve(this.files[filename]);
+    }
+    return this.load(filename);
+  }
+};
+
 const LOCAL_STORAGE_KEY = "sheepda-editor-state";
 
-// Fetch the prelude content on page load
-fetch('./shp/prelude.shp')
-  .then(response => {
-    if (!response.ok) {
-      throw new Error('Failed to load prelude.shp');
-    }
-    return response.text();
-  })
-  .then(content => {
-    preludeContent = content;
-    document.getElementById("field-stdlib").value = preludeContent;
+// Initialize the application
+function initializeApp() {
+  // Load prelude first
+  shpCache.get('prelude.shp')
+    .then(content => {
+      document.getElementById("field-stdlib").value = content;
 
-    // After prelude is loaded, check loading priority:
-    // 1. URL hash (shared code)
-    // 2. Local storage (previously edited code)
-    // 3. Default example
-    if (location.hash && location.hash !== "#") {
-      loadFromHash();
-    } else if (hasLocalStorage()) {
-      loadFromLocalStorage();
-    } else {
-      loadDefaultCode();
-    }
-  })
-  .catch(error => {
-    console.error('Error loading prelude:', error);
-    document.getElementById("field-stdlib").value = "Error loading prelude file";
-  });
+      // After prelude is loaded, check loading priority:
+      // 1. URL hash (shared code)
+      // 2. Local storage (previously edited code)
+      // 3. Default example
+      if (location.hash && location.hash !== "#") {
+        loadFromHash();
+      } else if (hasLocalStorage()) {
+        loadFromLocalStorage();
+      } else {
+        loadDefaultCode();
+      }
+    })
+    .catch(error => {
+      document.getElementById("field-stdlib").value = "Error loading prelude file";
+    });
+}
 
 function run() {
   const runButton = document.getElementById("field-run");
@@ -44,6 +68,7 @@ function run() {
     const stdlibChecked = document.getElementById("field-stdlib-checkbox").checked;
     const outputType = document.getElementById("field-output-type").value;
 
+    const preludeContent = shpCache.files['prelude.shp'] || '';
     const codeToRun = stdlibChecked ? preludeContent + code : code;
 
     try {
@@ -149,33 +174,18 @@ function applyState(stateObject) {
 }
 
 function loadDefaultCode() {
-  // Only fetch default.shp if we haven't already
-  if (!defaultContent) {
-    const codeEditor = document.getElementById("field-code");
-    codeEditor.value = "Loading default example...";
+  const codeEditor = document.getElementById("field-code");
+  codeEditor.value = "Loading default example...";
 
-    fetch('./shp/default.shp')
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Failed to load default.shp');
-        }
-        return response.text();
-      })
-      .then(content => {
-        defaultContent = content;
-        codeEditor.value = defaultContent;
-
-        // Also save default code to local storage for future visits
-        saveToLocalStorage();
-      })
-      .catch(error => {
-        console.error('Error loading default code:', error);
-        codeEditor.value = "Error loading default example";
-      });
-  } else {
-    // Use cached default content if we already fetched it
-    document.getElementById("field-code").value = defaultContent;
-  }
+  shpCache.get('default.shp')
+    .then(content => {
+      codeEditor.value = content;
+      // Also save default code to local storage for future visits
+      saveToLocalStorage();
+    })
+    .catch(error => {
+      codeEditor.value = "Error loading default example";
+    });
 }
 
 // Initialize when DOM is fully loaded
@@ -193,4 +203,7 @@ document.addEventListener('DOMContentLoaded', function() {
     e.preventDefault();
     saveToHash();
   });
+
+  // Initialize the app
+  initializeApp();
 });
