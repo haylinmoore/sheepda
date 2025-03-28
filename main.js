@@ -3,7 +3,7 @@ let defaultContent = "";
 const LOCAL_STORAGE_KEY = "sheepda-editor-state";
 
 // Fetch the prelude content on page load
-fetch('./prelude.shp')
+fetch('./shp/prelude.shp')
   .then(response => {
     if (!response.ok) {
       throw new Error('Failed to load prelude.shp');
@@ -154,7 +154,7 @@ function loadDefaultCode() {
     const codeEditor = document.getElementById("field-code");
     codeEditor.value = "Loading default example...";
 
-    fetch('./default.shp')
+    fetch('./shp/default.shp')
       .then(response => {
         if (!response.ok) {
           throw new Error('Failed to load default.shp');
