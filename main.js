@@ -1,4 +1,5 @@
 let preludeContent = "";
+let defaultContent = "";
 
 // Fetch the prelude content on page load
 fetch('./prelude.shp')
@@ -12,8 +13,13 @@ fetch('./prelude.shp')
     preludeContent = content;
     document.getElementById("field-stdlib").value = preludeContent;
 
-    // Load from hash after prelude is loaded to ensure everything is ready
-    loadFromHash();
+    // After prelude is loaded, check hash and load default if needed
+    if (location.hash && location.hash !== "#") {
+      loadFromHash();
+    } else {
+      // Only fetch default.shp if we need it
+      loadDefaultCode();
+    }
   })
   .catch(error => {
     console.error('Error loading prelude:', error);
@@ -86,28 +92,30 @@ function loadFromHash() {
 }
 
 function loadDefaultCode() {
-  document.getElementById("field-code").value = [
-    "# define the messages",
-    "fizzmsg = (cons (num 0 7 0) (cons (num 1 0 5) (cons (num 1 2 2) (cons (num 1 2 2) nil))))",
-    "buzzmsg = (cons (num 0 6 6) (cons (num 1 1 7) (cons (num 1 2 2) (cons (num 1 2 2) nil))))",
-    "fizzbuzzmsg = (cons (num 0 7 0) (cons (num 1 0 5) (cons (num 1 2 2) (cons (num 1 2 2)",
-    "    (cons (num 0 9 8) (cons (num 1 1 7) (cons (num 1 2 2) (cons (num 1 2 2) nil))))))))",
-    "",
-    "# fizzbuzz",
-    "fizzbuzz = λn.",
-    "  (for n λi.",
-    "    (do2",
-    "      (if (zero? (% i 3))",
-    "          λ_. (if (zero? (% i 5))",
-    "                  λ_. (print-list fizzbuzzmsg)",
-    "                  λ_. (print-list fizzmsg))",
-    "          λ_. (if (zero? (% i 5))",
-    "                  λ_. (print-list buzzmsg)",
-    "                  λ_. (print-list (itoa i))))",
-    "      (print-newline nil)))",
-    "",
-    "# run fizzbuzz 20 times",
-    "(fizzbuzz (num 0 2 0))"].join("\n");
+  // Only fetch default.shp if we haven't already
+  if (!defaultContent) {
+    const codeEditor = document.getElementById("field-code");
+    codeEditor.value = "Loading default example...";
+
+    fetch('./default.shp')
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to load default.shp');
+        }
+        return response.text();
+      })
+      .then(content => {
+        defaultContent = content;
+        codeEditor.value = defaultContent;
+      })
+      .catch(error => {
+        console.error('Error loading default code:', error);
+        codeEditor.value = "Error loading default example";
+      });
+  } else {
+    // Use cached default content if we already fetched it
+    document.getElementById("field-code").value = defaultContent;
+  }
 }
 
 // Initialize when DOM is fully loaded
