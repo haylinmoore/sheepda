@@ -1,5 +1,6 @@
 let preludeContent = "";
 let defaultContent = "";
+const LOCAL_STORAGE_KEY = "sheepda-editor-state";
 
 // Fetch the prelude content on page load
 fetch('./prelude.shp')
@@ -13,11 +14,15 @@ fetch('./prelude.shp')
     preludeContent = content;
     document.getElementById("field-stdlib").value = preludeContent;
 
-    // After prelude is loaded, check hash and load default if needed
+    // After prelude is loaded, check loading priority:
+    // 1. URL hash (shared code)
+    // 2. Local storage (previously edited code)
+    // 3. Default example
     if (location.hash && location.hash !== "#") {
       loadFromHash();
+    } else if (hasLocalStorage()) {
+      loadFromLocalStorage();
     } else {
-      // Only fetch default.shp if we need it
       loadDefaultCode();
     }
   })
@@ -30,6 +35,9 @@ function run() {
   const runButton = document.getElementById("field-run");
   runButton.disabled = true;
   runButton.textContent = "Running...";
+
+  // Save current state to local storage before running
+  saveToLocalStorage();
 
   setTimeout(function() {
     const code = document.getElementById("field-code").value;
@@ -55,19 +63,58 @@ function run() {
 }
 
 function saveToHash() {
-  const stdlibChecked = document.getElementById("field-stdlib-checkbox").checked;
-  const outputType = document.getElementById("field-output-type").value;
-  const code = document.getElementById("field-code").value;
-
-  const stateObject = {
-    stdlib: stdlibChecked,
-    output: outputType,
-    code: code
-  };
+  const stateObject = getCurrentState();
 
   // Create hash and update URL without reloading the page
   const hashValue = btoa(encodeURIComponent(JSON.stringify(stateObject)));
   window.history.replaceState(null, "", "#" + hashValue);
+
+  // Also save to local storage when sharing
+  saveToLocalStorage();
+}
+
+function saveToLocalStorage() {
+  try {
+    const stateObject = getCurrentState();
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(stateObject));
+  } catch (error) {
+    console.error("Error saving to local storage:", error);
+  }
+}
+
+function getCurrentState() {
+  return {
+    stdlib: document.getElementById("field-stdlib-checkbox").checked,
+    output: document.getElementById("field-output-type").value,
+    code: document.getElementById("field-code").value
+  };
+}
+
+function hasLocalStorage() {
+  try {
+    return localStorage.getItem(LOCAL_STORAGE_KEY) !== null;
+  } catch (error) {
+    console.error("Error accessing local storage:", error);
+    return false;
+  }
+}
+
+function loadFromLocalStorage() {
+  try {
+    const stateJSON = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (stateJSON) {
+      const stateObject = JSON.parse(stateJSON);
+      applyState(stateObject);
+      console.log("Loaded from local storage");
+      return true;
+    }
+  } catch (error) {
+    console.error("Error loading from local storage:", error);
+  }
+
+  // Fallback to default if local storage loading fails
+  loadDefaultCode();
+  return false;
 }
 
 function loadFromHash() {
@@ -75,20 +122,30 @@ function loadFromHash() {
     try {
       const hashValue = location.hash.slice(1); // Remove the # symbol
       const stateObject = JSON.parse(decodeURIComponent(atob(hashValue)));
+      applyState(stateObject);
 
-      // Apply the loaded state to the UI
-      document.getElementById("field-stdlib-checkbox").checked = stateObject.stdlib;
-      document.getElementById("field-output-type").value = stateObject.output;
-      document.getElementById("field-code").value = stateObject.code;
+      // Also save hash state to local storage
+      saveToLocalStorage();
+      return true;
     } catch (error) {
       console.error("Error parsing hash:", error);
-      // Fall back to default code if hash parsing fails
-      loadDefaultCode();
     }
-  } else {
-    // No hash, load default code
-    loadDefaultCode();
   }
+
+  // Fallback to local storage if hash loading fails
+  if (hasLocalStorage()) {
+    return loadFromLocalStorage();
+  } else {
+    // Fallback to default if both hash and local storage fail
+    loadDefaultCode();
+    return false;
+  }
+}
+
+function applyState(stateObject) {
+  document.getElementById("field-stdlib-checkbox").checked = stateObject.stdlib;
+  document.getElementById("field-output-type").value = stateObject.output;
+  document.getElementById("field-code").value = stateObject.code;
 }
 
 function loadDefaultCode() {
@@ -107,6 +164,9 @@ function loadDefaultCode() {
       .then(content => {
         defaultContent = content;
         codeEditor.value = defaultContent;
+
+        // Also save default code to local storage for future visits
+        saveToLocalStorage();
       })
       .catch(error => {
         console.error('Error loading default code:', error);
