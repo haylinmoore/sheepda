@@ -110,7 +110,6 @@ function saveToLocalStorage() {
 function getCurrentState() {
   return {
     stdlib: document.getElementById("field-stdlib-checkbox").checked,
-    output: document.getElementById("field-output-type").value,
     code: document.getElementById("field-code").value
   };
 }
@@ -169,7 +168,6 @@ function loadFromHash() {
 
 function applyState(stateObject) {
   document.getElementById("field-stdlib-checkbox").checked = stateObject.stdlib;
-  document.getElementById("field-output-type").value = stateObject.output;
   document.getElementById("field-code").value = stateObject.code;
 }
 
